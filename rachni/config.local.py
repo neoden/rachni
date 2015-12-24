@@ -1,3 +1,0 @@
-DEBUG = True
-
-SECRET_KEY = '!*&^R&V!hgvcjhfcRD%$%4568675876786yyuF!VHGCHJGCJGFJGH'
