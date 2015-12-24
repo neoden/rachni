@@ -4,3 +4,5 @@ from flask.ext.login import LoginManager
 mongo = PyMongo()
 
 login_manager = LoginManager()
+
+redis = None
