@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+</head>
+
+<body>
+
+{% with messages = get_flashed_messages() %}
+  {% if messages %}
+    <ul class=flashes>
+    {% for message in messages %}
+      <li>{{ message }}</li>
+    {% endfor %}
+    </ul>
+  {% endif %}
+{% endwith %}
+
+
+{% if current_user.is_authenticated %}
+Hello, {{ current_user.nickname }}
+<a href="{{ url_for('.logout') }}">Logout</a>
+{% else %}
+Please <a href="{{ url_for('.login') }}">sign in</a> or <a href="{{ url_for('.register') }}">register</a>
+{% endif %}
+
+</body>
+
+</html>

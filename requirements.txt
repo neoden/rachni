@@ -1,0 +1,7 @@
+websockets
+Flask
+Flask-Login
+Flask-PyMongo
+Flask-WTF
+pymongo
+WTForms
