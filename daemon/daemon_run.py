@@ -3,6 +3,7 @@
 import asyncio
 import websockets
 import logging
+import asyncio_redis
 
 
 logger = logging.getLogger('websockets.server')
@@ -11,16 +12,22 @@ logger.addHandler(logging.StreamHandler())
 
 
 class MessageServer:
-    def __init__(self, host, port, redis_uri):
-        self.host = host
-        self.port = port
-        self.redis_uri = redis_uri
+    def __init__(self, host=None, port=None, redis_host=None, redis_port=None):
+        self.host = host or '127.0.0.1'
+        self.port = port or 5678
+        self.redis_uri = redis_host or '127.0.0.1'
+        self.redis_port = redis_port or 6379
+        self.redis = None
     
     def run(self):
         start_server = websockets.serve(self.listen, self.host, self.port)
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(start_server)
-        loop.run_forever()
+        self.loop = asyncio.get_event_loop()
+        self.loop.run_until_complete(connect_redis)
+        self.loop.run_until_complete(start_server)
+        self.loop.run_forever()
+
+    async def connect_redis(self):
+        self.redis = await asyncio_redis.Connection.create(host=self.redis_host, port=self.redis_port)
 
     async def listen(self, websocket, path):
         await self.on_connect(websocket, path)
@@ -36,14 +43,14 @@ class MessageServer:
         await websocket.send(message)
 
     async def on_connect(self, websocket, path):
-        print('Connect: {}'.format(path))
+        print('Connected: {}'.format(path))
 
     async def on_disconnect(self, websocket, path):
-        print('Disconnect: {}'.format(path))
+        print('Disconnected: {}'.format(path))
 
 
 def main():
-    server = MessageServer('127.0.0.1', 5678, '')
+    server = MessageServer()
     server.run()
 
 
