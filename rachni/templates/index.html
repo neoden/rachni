@@ -38,8 +38,28 @@
 
 {% if current_user.is_authenticated %}
 
+<div>
+<p>
+Hello, <a href="{{ url_for('.channel', id=current_user.channels['direct']) }}">{{ current_user.nickname }}</a>
+<a href="{{ url_for('.logout') }}">Logout</a>
+</p>
+</div>
+
+<div>
+    Channels:
+    <ul id="channels">
+    {% for channel in current_user.channels['group'] %}
+        <li>{{ channel }}</li>
+    {% endfor %}
+    </ul>
+</div>
+
+{% if channel %}
+
+<h1>{{ channel['name'] }}</h1>
+
 <script type="text/javascript">
-    var sock = new WebSocket('{{ current_user.websocket_uri() }}');
+    var sock = new WebSocket('{{ current_user.websocket_uri(channel['_id']) }}');
     sock.onopen = function() {
         console.log('open');
         sock.send('test');
@@ -63,11 +83,6 @@
     });
 </script>
 
-<p>
-Hello, {{ current_user.nickname }}
-</p>
-<a href="{{ url_for('.logout') }}">Logout</a>
-
 <div>
     <ul id="messages">
     </ul>
@@ -76,7 +91,7 @@ Hello, {{ current_user.nickname }}
         <input id="m" autocomplete="off" /><button>Send</button>
     </form>    
 </div>
-
+{% endif %}
 
 {% else %}
 Please <a href="{{ url_for('.login') }}">sign in</a> or <a href="{{ url_for('.register') }}">register</a>

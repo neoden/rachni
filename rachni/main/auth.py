@@ -1,4 +1,4 @@
-import uuid
+from bson.objectid import ObjectId
 from flask import url_for, render_template, flash, request, redirect
 from flask.ext.login import UserMixin, login_user, logout_user
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -23,8 +23,8 @@ class User(UserMixin):
     def todict(self):
         return self.__dict__
 
-    def websocket_uri(self):
-        return 'ws://127.0.0.1:5678/{}'.format(self.uuid)
+    def websocket_uri(self, channel_id):
+        return 'ws://127.0.0.1:5678/{}'.format(channel_id)
 
     @staticmethod
     def validate_login(password_hash, password):
@@ -89,16 +89,24 @@ def register():
                 if user:
                     flash("User with this email is already registered", category="warning")
                 else:
+                    direct_id = mongo.db.channels.insert_one({
+                        'name': 'direct with {}'.format(form.nickname.data)
+                    }).inserted_id
+
                     user = {
                         '_id': form.email.data,
                         'password': generate_password_hash(form.password.data),
                         'nickname': form.nickname.data,
-                        'uuid': uuid.uuid4().hex
+                        'uid': ObjectId(),
+                        'channels': {'direct': direct_id, 'group': []}
                     }
+
                     mongo.db.users.insert_one(user)
+
                     user_obj = User(user)
                     login_user(user_obj)
                     flash("Logged in successfully", category='success')
+
                     return redirect(request.args.get("next") or url_for('.index'))
 
     return render_template('register.html', form=form)
