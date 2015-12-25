@@ -23,16 +23,23 @@ class MessageServer:
         loop.run_forever()
 
     async def listen(self, websocket, path):
-        print('Connect: {}'.format(path))
+        await self.on_connect(websocket, path)
+        
         while True:
             message = await websocket.recv()
             if message is None:
-                print('Disconnect: {}'.format(path))
+                await self.on_disconnect(websocket, path)
                 break
             await self.on_message(websocket, path, message)
 
     async def on_message(self, websocket, path, message):
         await websocket.send(message)
+
+    async def on_connect(self, websocket, path):
+        print('Connect: {}'.format(path))
+
+    async def on_disconnect(self, websocket, path):
+        print('Disconnect: {}'.format(path))
 
 
 def main():
