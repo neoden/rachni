@@ -14,9 +14,9 @@
 <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font: 13px Helvetica, Arial; }
-    form { background: #000; padding: 3px; position: fixed; bottom: 0; width: 100%; }
-    form input { border: 0; padding: 10px; width: 90%; margin-right: .5%; }
-    form button { width: 9%; background: rgb(130, 224, 255); border: none; padding: 10px; }
+    #form-msg { background: #000; padding: 3px; position: fixed; bottom: 0; width: 100%; }
+    #form-msg input { border: 0; padding: 10px; width: 90%; margin-right: .5%; }
+    #form-msg button { width: 9%; background: rgb(130, 224, 255); border: none; padding: 10px; }
     #messages { list-style-type: none; margin: 0; padding: 0; }
     #messages li { padding: 5px 10px; }
     #messages li:nth-child(odd) { background: #eee; }
@@ -40,16 +40,25 @@
 
 <div>
 <p>
-Hello, <a href="{{ url_for('.channel', id=current_user.channels['direct']) }}">{{ current_user.nickname }}</a>
+Hello, {{ current_user.nickname }}
 <a href="{{ url_for('.logout') }}">Logout</a>
 </p>
 </div>
 
 <div>
+    <form method="POST" action="{{ url_for('.create_channel') }}">
+        {{ create_form.csrf_token }}
+        {{ create_form.name }}
+        <button>Create channel</button>
+    </form>
+</div>
+
+
+<div>
     Channels:
     <ul id="channels">
-    {% for channel in current_user.channels['group'] %}
-        <li>{{ channel }}</li>
+    {% for channel in current_user.channels %}
+        <li><a href="{{ url_for('.channel', id=channel) }}">{{ channel }}</a></li>
     {% endfor %}
     </ul>
 </div>

@@ -89,16 +89,12 @@ def register():
                 if user:
                     flash("User with this email is already registered", category="warning")
                 else:
-                    direct_id = mongo.db.channels.insert_one({
-                        'name': 'direct with {}'.format(form.nickname.data)
-                    }).inserted_id
-
                     user = {
                         '_id': form.email.data,
                         'password': generate_password_hash(form.password.data),
                         'nickname': form.nickname.data,
                         'uid': ObjectId(),
-                        'channels': {'direct': direct_id, 'group': []}
+                        'channels': []
                     }
 
                     mongo.db.users.insert_one(user)
