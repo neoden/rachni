@@ -1,3 +1,4 @@
+import uuid
 from flask import url_for, render_template, flash, request, redirect
 from flask.ext.login import UserMixin, login_user, logout_user
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -13,13 +14,17 @@ from . import mod
 
 class User(UserMixin):
     def __init__(self, user):
-        self.user = user
+        for k, v in user.items():
+            setattr(self, k, v)
 
     def get_id(self):
-        return self.user['_id']
+        return self._id
 
-    def __getattr__(self, key):
-        return self.user[key]
+    def todict(self):
+        return self.__dict__
+
+    def websocket_uri(self):
+        return 'ws://127.0.0.1:5678/{}'.format(self.uuid)
 
     @staticmethod
     def validate_login(password_hash, password):
@@ -84,12 +89,13 @@ def register():
                 if user:
                     flash("User with this email is already registered", category="warning")
                 else:
-                    user_id = mongo.db.users.insert_one({
+                    user = {
                         '_id': form.email.data,
                         'password': generate_password_hash(form.password.data),
-                        'nickname': form.nickname.data
-                    }).inserted_id
-                    user = mongo.db.users.find_one({"_id": user_id})
+                        'nickname': form.nickname.data,
+                        'uuid': uuid.uuid4().hex
+                    }
+                    mongo.db.users.insert_one(user)
                     user_obj = User(user)
                     login_user(user_obj)
                     flash("Logged in successfully", category='success')
