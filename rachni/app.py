@@ -11,7 +11,8 @@ def create_app(cfg=None):
     from rachni.core import mongo
     mongo.init_app(app)
 
-    init_redis(app)
+    from rachni.core import redis
+    redis.init_app(app)
 
     from rachni.core import login_manager
     login_manager.init_app(app)
@@ -20,11 +21,6 @@ def create_app(cfg=None):
     app.register_blueprint(main_bp)
 
     return app
-
-
-def init_redis(app):
-    from rachni.core import redis
-    redis = StrictRedis(app.config['REDIS_DB'])
 
 
 def load_config(app, cfg=None):

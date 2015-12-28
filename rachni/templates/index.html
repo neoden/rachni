@@ -68,20 +68,29 @@ Hello, {{ current_user.nickname }}
 <h1>{{ channel['name'] }}</h1>
 
 <script type="text/javascript">
-    var sock = new WebSocket('{{ current_user.websocket_uri(channel['_id']) }}');
-    sock.onopen = function() {
-        console.log('open');
-        sock.send('test');
-    };
-    sock.onmessage = function(e) {
-        $("#messages").prepend("<li>" + e.data + "</li>");
-    };
-    sock.onclose = function(e) {
-        console.log('close');
-    };
-    sock.onerror = function(error) {
-        console.log(error);
-    };
+    var sock;
+
+    $(function() {
+        $.get("{{ url_for('.connect_to_channel', id=channel['_id']) }}", function(data) {
+            if (data["status"] == "ok") {
+                sock = new WebSocket(data["websocket_uri"]);
+                sock.onopen = function() {
+                    console.log('open');
+                    sock.send('test');
+                };
+                sock.onmessage = function(e) {
+                    $("#messages").prepend("<li>" + e.data + "</li>");
+                };
+                sock.onclose = function(e) {
+                    console.log('close');
+                };
+                sock.onerror = function(error) {
+                    console.log(error);
+                };
+            }
+        })
+    })
+
     $(function() {
         $("#form-msg").submit(function(event) {
             event.preventDefault();

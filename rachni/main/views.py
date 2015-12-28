@@ -1,12 +1,14 @@
+import uuid
+import json
 from itertools import chain
 from bson.objectid import ObjectId
-from flask import render_template, flash, abort, request, redirect, url_for
+from flask import render_template, flash, abort, request, redirect, url_for, jsonify
 from flask.ext.login import login_required, current_user
 from flask_wtf import Form
 from wtforms import StringField, PasswordField
 import wtforms.validators as v
 
-from rachni.core import mongo
+from rachni.core import mongo, redis
 
 from . import mod
 
@@ -73,3 +75,13 @@ def join_channel(token):
     current_user.channels.append(channel_id)
 
     return redirect(url_for('.channel', id=channel_id))
+
+
+@login_required
+@mod.route('/channel/<id>/connect')
+def connect_to_channel(id):
+    channel = mongo.db.channels.find_one_or_404(ObjectId(id))
+    token = uuid.uuid4().hex
+    payload = json.dumps({'channel_id': id, 'user_id': str(current_user._id)})
+    redis.set(token, payload, 60)
+    return jsonify(status='ok', websocket_uri='ws://localhost:5678/{}'.format(token))

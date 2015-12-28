@@ -30,23 +30,11 @@ class MessageServer:
         self.redis = await asyncio_redis.Connection.create(host=self.redis_host, port=self.redis_port)
 
     async def listen(self, websocket, path):
-        await self.on_connect(websocket, path)
-        
         while True:
             message = await websocket.recv()
             if message is None:
-                await self.on_disconnect(websocket, path)
                 break
-            await self.on_message(websocket, path, message)
-
-    async def on_message(self, websocket, path, message):
-        await websocket.send(message)
-
-    async def on_connect(self, websocket, path):
-        print('Connected: {}'.format(path))
-
-    async def on_disconnect(self, websocket, path):
-        print('Disconnected: {}'.format(path))
+            await websocket.send(message)
 
 
 def main():
