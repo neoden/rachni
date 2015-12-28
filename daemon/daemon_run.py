@@ -33,14 +33,21 @@ class MessageServer:
         print(id(self.redis_pub))
 
     async def listen(self, websocket, path):
-        session_info = await self.redis_pub.get(path[1:])
+        key = 'auth:' + path[1:]
+        session_info = await self.redis_pub.get(key)
+        if session_info is None:
+            return
+
+        self.redis_pub.delete(key)
+
         session = json.loads(session_info)
         user_id = session['user_id']
         channel_id = session['channel_id']
+        channel_key = 'channel:' + str(channel_id)
 
         redis_sub = await asyncio_redis.Connection.create(host=self.redis_host, port=self.redis_port)
         subscriber = await redis_sub.start_subscribe()
-        await subscriber.subscribe([channel_id])
+        await subscriber.subscribe([channel_key])
 
         while True:
             self.loop.create_task(self.get_messages(subscriber, websocket))
@@ -53,7 +60,7 @@ class MessageServer:
             }
             if message is None:
                 break
-            await self.redis_pub.publish(channel_id, json.dumps(envelope))
+            await self.redis_pub.publish(channel_key, json.dumps(envelope))
 
     async def get_messages(self, subscriber, websocket):
         incoming = await subscriber.next_published()

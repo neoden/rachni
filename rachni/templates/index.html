@@ -40,7 +40,7 @@
 
 <div>
 <p>
-Hello, {{ current_user.nickname }}
+Hello, {{ current_user.name }}
 <a href="{{ url_for('.logout') }}">Logout</a>
 </p>
 </div>
@@ -58,22 +58,22 @@ Hello, {{ current_user.nickname }}
     Channels:
     <ul id="channels">
     {% for channel in current_user.channels %}
-        <li><a href="{{ url_for('.channel', id=channel) }}">{{ channel }}</a></li>
+        <li><a href="{{ url_for('.channel', id=channel.id) }}">{{ channel.name }}</a></li>
     {% endfor %}
     </ul>
 </div>
 
 {% if channel %}
 
-<h1>{{ channel['name'] }}</h1>
+<h1>{{ channel.name }}</h1>
 
 <script type="text/javascript">
     var sock;
-    var user_id = "{{ current_user.uid }}";
-    var channel_id = "{{ channel['_id'] }}";
+    var user_id = "{{ current_user.id }}";
+    var channel_id = "{{ channel.id }}";
 
     $(function() {
-        $.get("{{ url_for('.connect_to_channel', id=channel['_id']) }}", function(data) {
+        $.get("{{ url_for('.connect_to_channel', id=channel.id) }}", function(data) {
             if (data["status"] == "ok") {
                 sock = new WebSocket(data["websocket_uri"]);
                 sock.onopen = function() {

@@ -8,7 +8,8 @@ from flask_wtf import Form
 from wtforms import StringField, PasswordField
 import wtforms.validators as v
 
-from rachni.core import mongo, redis
+from rachni.core import mongo, redis, db
+from rachni.main.models import User, Channel
 
 from . import mod
 
@@ -19,13 +20,13 @@ def index():
     return render_template('index.html', create_form=form)
 
 
-@login_required
 @mod.route('/channel/<id>/')
+@login_required
 def channel(id):
     form = CreateChannelForm()
-    channel_id = ObjectId(id)
-    if channel_id in current_user.channels:
-        channel = mongo.db.channels.find_one_or_404({'_id': channel_id})
+    channel = Channel.query.get_or_404(id)
+
+    if channel in current_user.channels:
         return render_template('index.html', channel=channel, create_form=form)
     else:
         abort(404)
@@ -35,53 +36,58 @@ class CreateChannelForm(Form):
     name = StringField('Name', validators=[v.required()])
 
 
-@login_required
 @mod.route('/channel/create/', methods=['POST'])
+@login_required
 def create_channel():
     form = CreateChannelForm(request.form)
 
     if form.validate_on_submit():
-        channel = {'name': request.form['name']}
-        channel_id = mongo.db.channels.insert_one(channel).inserted_id
-        mongo.db.users.find_one_and_update(
-            {'_id': current_user.get_id()}, 
-            {'$push': {'channels': channel_id}})
-        channel['_id'] = channel_id
-        current_user.channels.append(channel_id)
-        return redirect(url_for('.channel', id=channel_id))
+        channel = Channel(name=form.name.data)
+        channel.users = [current_user]
+        db.session.add(channel)
+        db.session.commit()
+
+        return redirect(url_for('.channel', id=channel.id))
     else:
         return redirect(url_for('.index'))
 
 
-@login_required
 @mod.route('/channel/<id>/leave/', methods=['POST'])
+@login_required
 def leave_channel(id):
     pass
 
 
-@login_required
 @mod.route('/channel/<id>/invite/')
-def invite_to_channel(id):
-    return url_for('.join_channel', token='+{}'.format(id), _external=True)
-
-
 @login_required
+def invite_to_channel(id):
+    channel = Channel.query.get_or_404(id)
+    token = uuid.uuid4().hex
+    redis.set('invite:' + token, channel.id, 60 * 60 * 24)    # TTL 24 hours
+    return url_for('.join_channel', token=token, _external=True)
+
+
 @mod.route('/join/<token>/')
+@login_required
 def join_channel(token):
-    channel_id = ObjectId(token[1:])
-    mongo.db.users.find_one_and_update(
-        {'_id': current_user.get_id()}, 
-        {'$push': {'channels': channel_id}})
-    current_user.channels.append(channel_id)
+    try:
+        key = 'invite:' + token
+        channel_id = int(redis.get(key))
+        redis.delete(key)
+        channel = Channel.query.get_or_404(channel_id)
+        channel.users.append(current_user)
+        db.session.commit()
+    except (ValueError, TypeError):
+        flash('Link is invalid', category='error')
 
     return redirect(url_for('.channel', id=channel_id))
 
 
-@login_required
 @mod.route('/channel/<id>/connect')
+@login_required
 def connect_to_channel(id):
-    channel = mongo.db.channels.find_one_or_404(ObjectId(id))
+    channel = Channel.query.get_or_404(id)
     token = uuid.uuid4().hex
-    payload = json.dumps({'channel_id': id, 'user_id': str(current_user._id)})
-    redis.set(token, payload, 60)
+    payload = json.dumps({'channel_id': channel.id, 'user_id': current_user.id})
+    redis.set('auth:' + token, payload, 60)      # TTL 1 minute
     return jsonify(status='ok', websocket_uri='ws://10.10.14.146:5678/{}'.format(token))

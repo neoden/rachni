@@ -1,6 +1,8 @@
 import os
 from flask import Flask
 from redis import StrictRedis
+from rachni.core import login_manager, redis, db
+from rachni.main import models
 
 
 def create_app(cfg=None):
@@ -11,10 +13,9 @@ def create_app(cfg=None):
     from rachni.core import mongo
     mongo.init_app(app)
 
-    from rachni.core import redis
     redis.init_app(app)
+    db.init_app(app)
 
-    from rachni.core import login_manager
     login_manager.init_app(app)
 
     from rachni.main import mod as main_bp

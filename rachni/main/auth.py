@@ -1,42 +1,22 @@
 from bson.objectid import ObjectId
 from flask import url_for, render_template, flash, request, redirect
 from flask.ext.login import UserMixin, login_user, logout_user
-from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.security import generate_password_hash
 from flask_wtf import Form
 from wtforms import StringField, PasswordField
 from wtforms.fields.html5 import EmailField
 import wtforms.validators as v
+from sqlalchemy.orm.exc import NoResultFound
 
-from rachni.core import mongo, login_manager
+from rachni.core import mongo, login_manager, db
+from rachni.main.models import User
 
 from . import mod
 
 
-class User(UserMixin):
-    def __init__(self, user):
-        for k, v in user.items():
-            setattr(self, k, v)
-
-    def get_id(self):
-        return self._id
-
-    def todict(self):
-        return self.__dict__
-
-    def websocket_uri(self, channel_id):
-        return 'ws://127.0.0.1:5678/{}'.format(channel_id)
-
-    @staticmethod
-    def validate_login(password_hash, password):
-        return check_password_hash(password_hash, password)
-
-
 @login_manager.user_loader
-def load_user(username):  
-    u = mongo.db.users.find_one({"_id": username})
-    if not u:
-        return None
-    return User(u)
+def load_user(user_id):  
+    return User.query.get(user_id)
 
 
 class LoginForm(Form):
@@ -50,11 +30,10 @@ def login():
 
     if request.method == 'POST':
         if form.validate_on_submit():
-            user = mongo.db.users.find_one({"_id": form.email.data})
+            user = User.query.filter_by(email=form.email.data).first()
 
-            if user and User.validate_login(user['password'], form.password.data):
-                user_obj = User(user)
-                login_user(user_obj)
+            if user and User.validate_login(user.password, form.password.data):
+                login_user(user)
                 flash("Logged in successfully", category='success')
                 return redirect(request.args.get("next") or url_for('.index'))
             else:
@@ -85,22 +64,19 @@ def register():
             if form.password.data != form.password2.data:
                 flash("Passwords are not identical", category='error')
             else:
-                user = mongo.db.users.find_one({"_id": form.email.data})
+                user = User.query.filter_by(email=form.email.data).first()
                 if user:
                     flash("User with this email is already registered", category="warning")
                 else:
-                    user = {
-                        '_id': form.email.data,
-                        'password': generate_password_hash(form.password.data),
-                        'nickname': form.nickname.data,
-                        'uid': ObjectId(),
-                        'channels': []
-                    }
+                    user = User(
+                        email=form.email.data,
+                        password_hash=generate_password_hash(form.password.data),
+                        name=form.nickname.data
+                    )
+                    db.session.add(user)
+                    db.session.commit()
 
-                    mongo.db.users.insert_one(user)
-
-                    user_obj = User(user)
-                    login_user(user_obj)
+                    login_user(user)
                     flash("Logged in successfully", category='success')
 
                     return redirect(request.args.get("next") or url_for('.index'))
