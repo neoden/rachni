@@ -2,7 +2,7 @@ import uuid
 import json
 from itertools import chain
 from bson.objectid import ObjectId
-from flask import render_template, flash, abort, request, redirect, url_for, jsonify
+from flask import render_template, flash, abort, request, redirect, url_for, jsonify, current_app
 from flask.ext.login import login_required, current_user
 from flask_wtf import Form
 from wtforms import StringField, PasswordField
@@ -90,4 +90,7 @@ def connect_to_channel(id):
     token = uuid.uuid4().hex
     payload = json.dumps({'channel_id': channel.id, 'user_id': current_user.id})
     redis.set('auth:' + token, payload, 60)      # TTL 1 minute
-    return jsonify(status='ok', websocket_uri='ws://10.10.14.146:5678/{}'.format(token))
+    return jsonify(status='ok', websocket_uri='ws://{}:{}/{}'.format(
+                current_app.config['HOSTNAME'],
+                current_app.config['WEBSOCKET_PORT'],
+                token))
