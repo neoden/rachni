@@ -5,6 +5,7 @@ import websockets
 import logging
 import asyncio_redis
 import json
+import time
 
 
 logger = logging.getLogger('websockets.server')
@@ -18,7 +19,7 @@ class MessageServer:
         self.port = port or 5678
         self.redis_host = redis_host or '127.0.0.1'
         self.redis_port = redis_port or 6379
-        self.redis = None
+        self.redis_pub = None
     
     def run(self):
         start_server = websockets.serve(self.listen, self.host, self.port)
@@ -44,17 +45,21 @@ class MessageServer:
         while True:
             self.loop.create_task(self.get_messages(subscriber, websocket))
             message = await websocket.recv()
+            envelope = {
+                'ts': time.time(),
+                'user_id': user_id,
+                'channel_id': channel_id,
+                'text': message
+            }
             if message is None:
                 break
-            print(message)
-            #await 
-            await self.redis_pub.publish(channel_id, message)
+            await self.redis_pub.publish(channel_id, json.dumps(envelope))
 
     async def get_messages(self, subscriber, websocket):
         incoming = await subscriber.next_published()
-        self.loop.create_task(self.get_messages(subscriber, websocket))
-        # echo
-        await websocket.send(incoming.value)
+        if websocket.open:
+            self.loop.create_task(self.get_messages(subscriber, websocket))
+            await websocket.send(incoming.value)
 
 
 def main():

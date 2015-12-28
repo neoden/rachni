@@ -69,6 +69,8 @@ Hello, {{ current_user.nickname }}
 
 <script type="text/javascript">
     var sock;
+    var user_id = "{{ current_user.uid }}";
+    var channel_id = "{{ channel['_id'] }}";
 
     $(function() {
         $.get("{{ url_for('.connect_to_channel', id=channel['_id']) }}", function(data) {
@@ -76,10 +78,12 @@ Hello, {{ current_user.nickname }}
                 sock = new WebSocket(data["websocket_uri"]);
                 sock.onopen = function() {
                     console.log('open');
-                    sock.send('test');
+                    sock.send("test");
                 };
                 sock.onmessage = function(e) {
-                    $("#messages").prepend("<li>" + e.data + "</li>");
+                    console.log(e);
+                    message = JSON.parse(e.data)
+                    $("#messages").prepend("<li>" + message["text"] + "</li>");
                 };
                 sock.onclose = function(e) {
                     console.log('close');
