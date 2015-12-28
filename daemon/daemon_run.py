@@ -4,6 +4,7 @@ import asyncio
 import websockets
 import logging
 import asyncio_redis
+import json
 
 
 logger = logging.getLogger('websockets.server')
@@ -13,7 +14,7 @@ logger.addHandler(logging.StreamHandler())
 
 class MessageServer:
     def __init__(self, host=None, port=None, redis_host=None, redis_port=None):
-        self.host = host or '127.0.0.1'
+        self.host = host or '0.0.0.0'
         self.port = port or 5678
         self.redis_host = redis_host or '127.0.0.1'
         self.redis_port = redis_port or 6379
@@ -27,14 +28,33 @@ class MessageServer:
         self.loop.run_forever()
 
     async def connect_redis(self):
-        self.redis = await asyncio_redis.Connection.create(host=self.redis_host, port=self.redis_port)
+        self.redis_pub = await asyncio_redis.Connection.create(host=self.redis_host, port=self.redis_port)
+        print(id(self.redis_pub))
 
     async def listen(self, websocket, path):
+        session_info = await self.redis_pub.get(path[1:])
+        session = json.loads(session_info)
+        user_id = session['user_id']
+        channel_id = session['channel_id']
+
+        redis_sub = await asyncio_redis.Connection.create(host=self.redis_host, port=self.redis_port)
+        subscriber = await redis_sub.start_subscribe()
+        await subscriber.subscribe([channel_id])
+
         while True:
+            self.loop.create_task(self.get_messages(subscriber, websocket))
             message = await websocket.recv()
             if message is None:
                 break
-            await websocket.send(message)
+            print(message)
+            #await 
+            await self.redis_pub.publish(channel_id, message)
+
+    async def get_messages(self, subscriber, websocket):
+        incoming = await subscriber.next_published()
+        self.loop.create_task(self.get_messages(subscriber, websocket))
+        # echo
+        await websocket.send(incoming.value)
 
 
 def main():

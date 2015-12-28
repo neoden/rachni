@@ -84,4 +84,4 @@ def connect_to_channel(id):
     token = uuid.uuid4().hex
     payload = json.dumps({'channel_id': id, 'user_id': str(current_user._id)})
     redis.set(token, payload, 60)
-    return jsonify(status='ok', websocket_uri='ws://localhost:5678/{}'.format(token))
+    return jsonify(status='ok', websocket_uri='ws://10.10.14.146:5678/{}'.format(token))
