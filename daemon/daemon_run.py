@@ -38,7 +38,7 @@ class MessageServer:
         if session_info is None:
             return
 
-        self.redis_pub.delete(key)
+        await self.redis_pub.delete([key])
 
         session = json.loads(session_info)
         user_id = session['user_id']
