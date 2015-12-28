@@ -1,14 +1,13 @@
 import uuid
 import json
 from itertools import chain
-from bson.objectid import ObjectId
 from flask import render_template, flash, abort, request, redirect, url_for, jsonify, current_app
 from flask.ext.login import login_required, current_user
 from flask_wtf import Form
 from wtforms import StringField, PasswordField
 import wtforms.validators as v
 
-from rachni.core import mongo, redis, db
+from rachni.core import redis, db
 from rachni.main.models import User, Channel
 
 from . import mod

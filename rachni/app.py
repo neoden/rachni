@@ -10,9 +10,6 @@ def create_app(cfg=None):
 
     load_config(app, cfg)
 
-    from rachni.core import mongo
-    mongo.init_app(app)
-
     redis.init_app(app)
     db.init_app(app)
 

@@ -1,4 +1,3 @@
-from bson.objectid import ObjectId
 from flask import url_for, render_template, flash, request, redirect
 from flask.ext.login import UserMixin, login_user, logout_user
 from werkzeug.security import generate_password_hash
@@ -8,7 +7,7 @@ from wtforms.fields.html5 import EmailField
 import wtforms.validators as v
 from sqlalchemy.orm.exc import NoResultFound
 
-from rachni.core import mongo, login_manager, db
+from rachni.core import login_manager, db
 from rachni.main.models import User
 
 from . import mod

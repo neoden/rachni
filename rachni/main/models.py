@@ -23,9 +23,6 @@ class User(db.Model, UserMixin):
     def get_id(self):
         return self.id
 
-    def websocket_uri(self, channel_id):
-        return 'ws://127.0.0.1:5678/{}'.format(channel_id)
-
     @staticmethod
     def validate_login(password_hash, password):
         return check_password_hash(password_hash, password)
