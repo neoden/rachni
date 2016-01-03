@@ -1,14 +1,11 @@
 from flask import url_for, render_template, flash, request, redirect
 from flask.ext.login import UserMixin, login_user, logout_user
 from werkzeug.security import generate_password_hash
-from flask_wtf import Form
-from wtforms import StringField, PasswordField
-from wtforms.fields.html5 import EmailField
-import wtforms.validators as v
 from sqlalchemy.orm.exc import NoResultFound
 
 from rachni.core import login_manager, db
 from rachni.main.models import User
+from rachni.main.forms import LoginForm, RegisterForm
 
 from . import mod
 
@@ -18,12 +15,7 @@ def load_user(user_id):
     return User.query.get(user_id)
 
 
-class LoginForm(Form):
-    email = StringField('Email', validators=[v.required()])
-    password = PasswordField('Password', validators=[v.required()])
-
-
-@mod.route('/login', methods=['GET', 'POST'])
+@mod.route('/login', methods=['POST'])
 def login():  
     form = LoginForm(request.form)
 
@@ -38,20 +30,13 @@ def login():
             else:
                 flash("Wrong username or password", category='error')
 
-    return render_template('login.html', form=form)
+    return redirect(url_for('.index'))
 
 
 @mod.route('/logout')
 def logout():
     logout_user()
-    return redirect(url_for('.login'))
-
-
-class RegisterForm(Form):
-    nickname = StringField('Nickname', validators=[v.required()])
-    email = EmailField('Email', validators=[v.required()])
-    password = PasswordField('Password', validators=[v.required()])
-    password2 = PasswordField('Password2', validators=[v.required()])
+    return redirect(url_for('.index'))
 
 
 @mod.route('/register', methods=['GET', 'POST'])

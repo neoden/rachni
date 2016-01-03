@@ -7,10 +7,19 @@ import asyncio_redis
 import json
 import time
 
+from asyncio_redis.exceptions import NotConnectedError
+from websockets.exceptions import ConnectionClosed
 
-logger = logging.getLogger('websockets.server')
-logger.setLevel(logging.DEBUG)
-logger.addHandler(logging.StreamHandler())
+log = logging.getLogger('websockets.server')
+log.setLevel(logging.DEBUG)
+log.addHandler(logging.StreamHandler())
+
+
+def info(message):
+    log.info('{}: {}'.format(time.time(), message))
+
+def error(message):
+    log.error('\033[0;91m{}: {}\033[0m'.format(time.time(), message))
 
 
 class MessageServer:
@@ -30,12 +39,13 @@ class MessageServer:
 
     async def connect_redis(self):
         self.redis_pub = await asyncio_redis.Connection.create(host=self.redis_host, port=self.redis_port)
-        print(id(self.redis_pub))
 
     async def listen(self, websocket, path):
+        info('listen')
         key = 'auth:' + path[1:]
         session_info = await self.redis_pub.get(key)
         if session_info is None:
+            error('unauthorized socket connection attempt')
             return
 
         await self.redis_pub.delete([key])
@@ -45,28 +55,41 @@ class MessageServer:
         channel_id = session['channel_id']
         channel_key = 'channel:' + str(channel_id)
 
+        info('session: {}'.format(session))
+
         redis_sub = await asyncio_redis.Connection.create(host=self.redis_host, port=self.redis_port)
         subscriber = await redis_sub.start_subscribe()
         await subscriber.subscribe([channel_key])
 
+        self.loop.create_task(self.get_messages(subscriber, websocket))
+
         while True:
-            self.loop.create_task(self.get_messages(subscriber, websocket))
-            message = await websocket.recv()
+            try:
+                message = await websocket.recv()
+            except ConnectionClosed:
+                info('connection closed')
+                break
+
+            info('received: {}'.format(message))
             envelope = {
                 'ts': time.time(),
                 'user_id': user_id,
                 'channel_id': channel_id,
                 'text': message
             }
-            if message is None:
-                break
+            info('publishing: {}'.format(envelope))
             await self.redis_pub.publish(channel_key, json.dumps(envelope))
 
     async def get_messages(self, subscriber, websocket):
-        incoming = await subscriber.next_published()
-        if websocket.open:
-            self.loop.create_task(self.get_messages(subscriber, websocket))
-            await websocket.send(incoming.value)
+        try:
+            if websocket.open:
+                incoming = await subscriber.next_published()
+                info('sending back: [{}] {}'.format(id(websocket), incoming.value))
+                await websocket.send(incoming.value)
+                self.loop.create_task(self.get_messages(subscriber, websocket))
+        except ConnectionClosed:
+            error('websocket closed: [{}] {}'.format(id(websocket), incoming.value))
+          
 
 
 def main():

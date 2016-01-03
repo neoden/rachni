@@ -10,13 +10,16 @@ import wtforms.validators as v
 from rachni.core import redis, db
 from rachni.main.models import User, Channel
 
+from rachni.main.forms import LoginForm
+
 from . import mod
 
 
 @mod.route('/')
 def index():
-    form = CreateChannelForm()
-    return render_template('index.html', create_form=form)
+    create_form = CreateChannelForm()
+    login_form = LoginForm()
+    return render_template('index.html', create_form=create_form, login_form=login_form)
 
 
 @mod.route('/channel/<id>/')
