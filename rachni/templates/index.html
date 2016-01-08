@@ -166,7 +166,7 @@
         <ul id="channels">
         {% for c in current_user.channels %}
             <li>
-            {% if c.name == channel.name %}
+            {% if channel and c.name == channel.name %}
                 <a class="current-channel" href="{{ url_for('.channel', id=c.id) }}">{{ c.name }}</a>
             {%else %}
                 <a href="{{ url_for('.channel', id=c.id) }}">{{ c.name }}</a>

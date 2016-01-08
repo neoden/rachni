@@ -15,11 +15,62 @@ log.setLevel(logging.DEBUG)
 log.addHandler(logging.StreamHandler())
 
 
+def debug(message):
+    log.debug('\033[0;33m{}: {}\033[0m'.format(time.time(), message))
+
 def info(message):
     log.info('{}: {}'.format(time.time(), message))
 
 def error(message):
     log.error('\033[0;91m{}: {}\033[0m'.format(time.time(), message))
+
+
+def channel_key(channel_id):
+    return 'channel:' + str(channel_id)
+
+def key(prefix, name):
+    return '{}:{}'.format(prefix, str(name))
+
+
+class Session:
+    def __init__(self):
+        self.message_task = None
+
+    async def create(self, session_info, server, websocket):
+        for k, v in session_info.items():
+            setattr(self, k, v)
+        self.server = server
+        self.websocket = websocket
+        self.redis_sub = await asyncio_redis.Connection.create(
+                                    host=server.redis_host, 
+                                    port=server.redis_port)
+        self.subscriber = await self.redis_sub.start_subscribe()
+        await self.subscriber.subscribe([channel_key(self.channel_id)])
+        await self.schedule()
+
+    async def close(self):
+        debug('closing session')
+        self.redis_sub.close()
+        if self.websocket:
+            await self.websocket.close()
+        if self.message_task:
+            self.message_task.cancel()
+        debug('session closed')
+
+    async def get_messages(self):
+        try:
+            incoming = await self.subscriber.next_published()
+            info('sending back: {}'.format(incoming.value))
+            await self.websocket.send(incoming.value)
+            await self.schedule()
+        except ConnectionClosed:
+            await self.close()
+        except asyncio.CancelledError:
+            debug('message task cancelled')
+
+    async def schedule(self):
+        debug('scheduling message task')
+        self.message_task = self.server.loop.create_task(self.get_messages())
 
 
 class MessageServer:
@@ -31,65 +82,54 @@ class MessageServer:
         self.redis_pub = None
     
     def run(self):
-        start_server = websockets.serve(self.listen, self.host, self.port)
         self.loop = asyncio.get_event_loop()
-        self.loop.run_until_complete(self.connect_redis())
-        self.loop.run_until_complete(start_server)
+        debug('starting server')
+        self.loop.run_until_complete(asyncio.gather(
+            self.connect_redis(),
+            websockets.serve(self.listen, self.host, self.port)))
+        debug('entering loop')
         self.loop.run_forever()
 
     async def connect_redis(self):
         self.redis_pub = await asyncio_redis.Connection.create(host=self.redis_host, port=self.redis_port)
 
-    async def listen(self, websocket, path):
-        info('listen')
-        key = 'auth:' + path[1:]
-        session_info = await self.redis_pub.get(key)
+    async def authenticate(self, path):
+        auth_key = key('auth', path[1:])
+        session_info = await self.redis_pub.get(auth_key)
         if session_info is None:
             error('unauthorized socket connection attempt')
+            return None
+        await self.redis_pub.delete([auth_key])
+        return session_info
+
+    async def listen(self, websocket, path):
+        debug('incoming websocket connection')
+        session_info = await self.authenticate(path)
+        if not session_info:
             return
 
-        await self.redis_pub.delete([key])
-
-        session = json.loads(session_info)
-        user_id = session['user_id']
-        channel_id = session['channel_id']
-        channel_key = 'channel:' + str(channel_id)
+        session = Session()
+        await session.create(json.loads(session_info), self, websocket)
 
         info('session: {}'.format(session))
-
-        redis_sub = await asyncio_redis.Connection.create(host=self.redis_host, port=self.redis_port)
-        subscriber = await redis_sub.start_subscribe()
-        await subscriber.subscribe([channel_key])
-
-        self.loop.create_task(self.get_messages(subscriber, websocket))
 
         while True:
             try:
                 message = await websocket.recv()
             except ConnectionClosed:
-                info('connection closed')
+                debug('connection closed')
+                await session.close()
                 break
 
             info('received: {}'.format(message))
             envelope = {
                 'ts': time.time(),
-                'user_id': user_id,
-                'channel_id': channel_id,
+                'user_id': session.user_id,
+                'channel_id': session.channel_id,
                 'text': message
             }
             info('publishing: {}'.format(envelope))
-            await self.redis_pub.publish(channel_key, json.dumps(envelope))
-
-    async def get_messages(self, subscriber, websocket):
-        try:
-            if websocket.open:
-                incoming = await subscriber.next_published()
-                info('sending back: [{}] {}'.format(id(websocket), incoming.value))
-                await websocket.send(incoming.value)
-                self.loop.create_task(self.get_messages(subscriber, websocket))
-        except ConnectionClosed:
-            error('websocket closed: [{}] {}'.format(id(websocket), incoming.value))
-          
+            await self.redis_pub.publish(channel_key(session.channel_id), json.dumps(envelope))
 
 
 def main():
