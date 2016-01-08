@@ -198,39 +198,90 @@
     </div>
 
     <script type="text/javascript">
+        var SOCKET_STATE_TIMEOUT = 100;
+
         var sock;
         var user_id = "{{ current_user.id }}";
         var channel_id = "{{ channel.id }}";
 
-        $(function() {
+        function authenticate(onAuthenticated) {
             $.get("{{ url_for('.connect_to_channel', id=channel.id) }}", function(data) {
                 if (data["status"] == "ok") {
-                    sock = new WebSocket(data["websocket_uri"]);
-                    sock.onopen = function() {
-                        console.log('open');
-                        sock.send("Welcome to {{ channel.name }}");
-                    };
-                    sock.onmessage = function(e) {
-                        console.log(e);
-                        message = JSON.parse(e.data)
-                        $("#messages").append('<li class="msg">' + message["text"] + "</li>");
-                        $("#messages").scrollTop($("#messages")[0].scrollHeight);
-                    };
-                    sock.onclose = function(e) {
-                        console.log('close');
-                    };
-                    sock.onerror = function(error) {
-                        console.log(error);
-                    };
+                    websocketUri = data["websocket_uri"]
+                    console.log('websocket uri received: ' + websocketUri);
+                    onAuthenticated(websocketUri);
                 }
-            })
+            })            
+        }
+
+        function createSocket(onOpen) {
+            return authenticate(function(websocketUri) {
+                socket = new WebSocket(websocketUri);
+                socket.onopen = function() {
+                    console.log('open');
+                    if (onOpen != undefined) {
+                        onOpen(socket);
+                    }
+                };
+                socket.onmessage = function(e) {
+                    console.log(e);
+                    message = JSON.parse(e.data)
+                    $("#messages").append('<li class="msg">' + message["text"] + "</li>");
+                    $("#messages").scrollTop($("#messages")[0].scrollHeight);
+                };
+                socket.onclose = function(e) {
+                    console.log('close');
+                };
+                socket.onerror = function(error) {
+                    console.log(error);
+                };
+
+                sock = socket;
+            });
+        }
+
+        function withSocket(whenReady) {
+            if (sock != undefined) {
+                switch (sock.readyState) {
+                    case 0:   // connection is not ready yet
+                    case 2:   // closing handshake
+                        setTimeout(function() {
+                            withSocket(whenReady);
+                        }, SOCKET_STATE_TIMEOUT);
+                        break;
+                    case 1:   // connection is ready
+                        if (whenReady != undefined) {
+                            whenReady(sock);
+                        }
+                        break;
+                        setTimeout(function() {
+                            withSocket(whenReady);
+                        }, SOCKET_STATE_TIMEOUT);
+                        break;
+                    case 3:   // closed
+                        createSocket(whenReady);
+                        break;
+                }
+            }
+            else {
+                createSocket(whenReady);
+            }
+        }
+
+        $(function() {
+            withSocket(function(socket) {
+               socket.send("Welcome to {{ channel.name }}");
+            });
         })
 
         $(function() {
             $("#form-msg").submit(function(event) {
                 event.preventDefault();
                 field = $("#m")
-                sock.send(field.val());
+                message = field.val();
+                withSocket(function(socket) {
+                    socket.send(message);
+                });                
                 field.val("");
             });
         });

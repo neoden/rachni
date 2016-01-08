@@ -72,6 +72,9 @@ class Session:
         debug('scheduling message task')
         self.message_task = self.server.loop.create_task(self.get_messages())
 
+    def __repr__(self):
+        return 'Session <User: {}, Channel: {}>'.format(self.user_id, self.channel_id)
+
 
 class MessageServer:
     def __init__(self, host=None, port=None, redis_host=None, redis_port=None):
