@@ -237,8 +237,10 @@
                     socket.onmessage = function(e) {
                         console.log(e);
                         message = JSON.parse(e.data)
-                        $("#messages").append('<li class="msg">' + message["text"] + "</li>");
-                        $("#messages").scrollTop($("#messages")[0].scrollHeight);
+                        if (message["channel_id"] == {{ channel.id }}) {
+                            $("#messages").append('<li class="msg">' + message["text"] + "</li>");
+                            $("#messages").scrollTop($("#messages")[0].scrollHeight);
+                        }
                     };
                     socket.onclose = function(e) {
                         console.log('close');

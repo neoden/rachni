@@ -90,9 +90,24 @@ def join_channel(token):
 def connect_to_channel(id):
     channel = Channel.query.get_or_404(id)
     token = uuid.uuid4().hex
-    payload = json.dumps({'channel_id': channel.id, 'user_id': current_user.id})
+    payload = json.dumps({
+        'current_channel': {
+            'id': channel.id, 
+            'name': channel.name,
+            'users': [{'id': u.id, 'name': u.name, 'email': u.email} for u in channel.users]
+        },
+        'channels': [{'id': c.id, 'name': c.name} for c in current_user.channels],
+        'user': {
+            'id': current_user.id,
+            'name': current_user.name,
+            'email': current_user.email
+        }
+    })
     redis.set('auth:' + token, payload, 60)      # TTL 1 minute
-    return jsonify(status='ok', websocket_uri='ws://{}:{}/{}'.format(
-                current_app.config['HOSTNAME'],
-                current_app.config['WEBSOCKET_PORT'],
-                token))
+
+    websocket_uri = 'ws://{}:{}/{}'.format(
+        current_app.config['HOSTNAME'],
+        current_app.config['WEBSOCKET_PORT'],
+        token)
+
+    return jsonify(status='ok', websocket_uri=websocket_uri)

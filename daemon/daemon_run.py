@@ -25,9 +25,6 @@ def error(message):
     log.error('\033[0;91m{}: {}\033[0m'.format(time.time(), message))
 
 
-def channel_key(channel_id):
-    return 'channel:' + str(channel_id)
-
 def key(prefix, name):
     return '{}:{}'.format(prefix, str(name))
 
@@ -36,6 +33,14 @@ class Session:
     def __init__(self):
         self.message_task = None
 
+    @property
+    def channel_id(self):
+        return self.current_channel['id']
+
+    @property
+    def user_id(self):
+        return self.user['id']
+        
     async def create(self, session_info, server, websocket):
         for k, v in session_info.items():
             setattr(self, k, v)
@@ -45,7 +50,7 @@ class Session:
                                     host=server.redis_host, 
                                     port=server.redis_port)
         self.subscriber = await self.redis_sub.start_subscribe()
-        await self.subscriber.subscribe([channel_key(self.channel_id)])
+        await self.subscriber.subscribe([key('channel', c['id']) for c in self.channels])
         await self.schedule()
 
     async def close(self):
@@ -132,7 +137,7 @@ class MessageServer:
                 'text': message
             }
             info('publishing: {}'.format(envelope))
-            await self.redis_pub.publish(channel_key(session.channel_id), json.dumps(envelope))
+            await self.redis_pub.publish(key('channel', session.channel_id), json.dumps(envelope))
 
 
 def main():
