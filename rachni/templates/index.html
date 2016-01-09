@@ -91,6 +91,10 @@
             padding: 5px;
         }
 
+        .sending-disabled {
+            background: whitesmoke;
+        }
+
         #frm-create-channel {
             margin-top: 40px;
         }
@@ -199,76 +203,90 @@
 
     <script type="text/javascript">
         var SOCKET_STATE_TIMEOUT = 100;
+        var RECONNECT_TIMEOUT = 5000;
 
         var sock;
         var user_id = "{{ current_user.id }}";
         var channel_id = "{{ channel.id }}";
 
-        function authenticate(onAuthenticated) {
-            $.get("{{ url_for('.connect_to_channel', id=channel.id) }}", function(data) {
-                if (data["status"] == "ok") {
-                    websocketUri = data["websocket_uri"]
-                    console.log('websocket uri received: ' + websocketUri);
-                    onAuthenticated(websocketUri);
-                }
-            })            
+        function authenticate(onAuthenticated, onFailed) {
+            $.get("{{ url_for('.connect_to_channel', id=channel.id) }}")
+                .done(function(data) {
+                    if (data["status"] == "ok") {
+                        websocketUri = data["websocket_uri"]
+                        console.log('websocket uri received: ' + websocketUri);
+                        onAuthenticated(websocketUri);
+                    }
+                })
+                .fail(function() {
+                    console.log("authentication request failed");
+                    onFailed();
+                });
         }
 
         function createSocket(onOpen) {
-            return authenticate(function(websocketUri) {
-                socket = new WebSocket(websocketUri);
-                socket.onopen = function() {
-                    console.log('open');
-                    if (onOpen != undefined) {
-                        onOpen(socket);
-                    }
-                };
-                socket.onmessage = function(e) {
-                    console.log(e);
-                    message = JSON.parse(e.data)
-                    $("#messages").append('<li class="msg">' + message["text"] + "</li>");
-                    $("#messages").scrollTop($("#messages")[0].scrollHeight);
-                };
-                socket.onclose = function(e) {
-                    console.log('close');
-                };
-                socket.onerror = function(error) {
-                    console.log(error);
-                };
+            authenticate(
+                function(websocketUri) {
+                    socket = new WebSocket(websocketUri);
+                    socket.onopen = function() {
+                        console.log('open');
+                        if (onOpen != undefined) {
+                            onOpen(socket);
+                        }
+                    };
+                    socket.onmessage = function(e) {
+                        console.log(e);
+                        message = JSON.parse(e.data)
+                        $("#messages").append('<li class="msg">' + message["text"] + "</li>");
+                        $("#messages").scrollTop($("#messages")[0].scrollHeight);
+                    };
+                    socket.onclose = function(e) {
+                        console.log('close');
+                    };
+                    socket.onerror = function(error) {
+                        console.log(error);
+                    };
 
-                sock = socket;
-            });
+                    sock = socket;
+                },
+                function() {
+                    sock = undefined;
+                });
         }
 
         function withSocket(whenReady) {
-            if (sock != undefined) {
-                switch (sock.readyState) {
-                    case 0:   // connection is not ready yet
-                    case 2:   // closing handshake
-                        setTimeout(function() {
-                            withSocket(whenReady);
-                        }, SOCKET_STATE_TIMEOUT);
-                        break;
-                    case 1:   // connection is ready
-                        if (whenReady != undefined) {
-                            whenReady(sock);
-                        }
-                        break;
-                        setTimeout(function() {
-                            withSocket(whenReady);
-                        }, SOCKET_STATE_TIMEOUT);
-                        break;
-                    case 3:   // closed
-                        createSocket(whenReady);
-                        break;
+            if (sock != undefined && sock.readyState == 1) {
+                if (whenReady != undefined) {
+                    whenReady(sock);
                 }
             }
             else {
-                createSocket(whenReady);
+                setTimeout(function() {
+                    withSocket(whenReady);
+                }, SOCKET_STATE_TIMEOUT);
+            }
+        }
+
+        function watch() {
+            // watch for socket status and attempt to reconnect 
+            // if connection is closed
+            if (sock == undefined || sock.readyState == 3) {
+                // connection lost
+                console.log('connnection lost');
+                $("#m").addClass("sending-disabled");
+
+                createSocket(function() {
+                    // on reconnect
+                    $("#m").removeClass("sending-disabled");
+                    console.log('connnection restored');
+                });
             }
         }
 
         $(function() {
+            watch();
+            setInterval(watch, RECONNECT_TIMEOUT);
+
             withSocket(function(socket) {
                socket.send("Welcome to {{ channel.name }}");
             });
@@ -277,12 +295,14 @@
         $(function() {
             $("#form-msg").submit(function(event) {
                 event.preventDefault();
-                field = $("#m")
-                message = field.val();
-                withSocket(function(socket) {
-                    socket.send(message);
-                });                
-                field.val("");
+                if (!$("#m").hasClass("sending-disabled")) {
+                    field = $("#m")
+                    message = field.val();
+                    withSocket(function(socket) {
+                        socket.send(message);
+                    });                
+                    field.val("");
+                }
             });
         });
     </script>
