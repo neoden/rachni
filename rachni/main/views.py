@@ -93,8 +93,7 @@ def connect_to_channel(id):
     payload = json.dumps({
         'current_channel': {
             'id': channel.id, 
-            'name': channel.name,
-            'users': [{'id': u.id, 'name': u.name, 'email': u.email} for u in channel.users]
+            'name': channel.name
         },
         'channels': [{'id': c.id, 'name': c.name} for c in current_user.channels],
         'user': {

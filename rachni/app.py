@@ -1,8 +1,11 @@
 import os
+import json
 from flask import Flask
 from redis import StrictRedis
+
 from rachni.core import login_manager, redis, db
 from rachni.main import models
+from config import Config
 
 
 def create_app(cfg=None):
@@ -22,13 +25,21 @@ def create_app(cfg=None):
 
 
 def load_config(app, cfg=None):
-    app.config.from_pyfile('config.py')
+    app.config.from_object(
+        Config.from_file(
+            os.path.join(app.root_path, 'config.json')))
 
-    if os.path.isfile('config.local.py'):
-        app.config.from_pyfile('config.local.py')
+    local_config_path = os.path.join(app.root_path, 'config.local.json')
+
+    if os.path.isfile(local_config_path):
+        app.config.from_object(
+            Config.from_file(local_config_path))
 
     if cfg is None and 'RACHNI_CFG' in os.environ:
         cfg = os.environ['RACHNI_CFG']
 
     if cfg is not None:
-        app.config.from_pyfile(cfg)
+        app.config.from_object(Config.from_file(cfg))
+
+    # for k, v in app.config.items():
+    #     print('{} = {}'.format(k, v))

@@ -44,4 +44,10 @@ class Channel(db.Model):
         return '<Channel %d:%s>' % (self.id or 0, self.name)
 
 
+class Message(db.Model):
+    __tablename__ = 'messages'
 
+    ts = db.Column(db.DateTime, nullable=False, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, primary_key=True)
+    channel_id = db.Column(db.Integer, db.ForeignKey('channels.id'), nullable=False, primary_key=True)
+    text = db.Column(db.Text)

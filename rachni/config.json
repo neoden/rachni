@@ -1,0 +1,21 @@
+{
+    "DEBUG": false,
+
+    "REDIS_DB": "redis://localhost:6379/0",
+
+    "SQLALCHEMY_DATABASE_URI": "postgresql://rachni:rachni@localhost:5432/rachni",
+    "SQLALCHEMY_ECHO": false,
+    "SQLALCHEMY_TRACK_MODIFICATIONS": false,
+
+    "MAIL_ENABLED": true,
+    "MAIL_SERVER": "localhost",
+    "MAIL_PORT": 25,
+    "MAIL_USE_TLS": false,
+    "MAIL_USE_SSL": false,
+    "MAIL_DEBUG": false,
+    "MAIL_USERNAME": "",
+    "MAIL_PASSWORD": "",
+    "MAIL_DEFAULT_SENDER": "info@stoneinfocus.org",
+
+    "WEBSOCKET_PORT": 5678
+}

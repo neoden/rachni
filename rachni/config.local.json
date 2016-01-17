@@ -1,0 +1,7 @@
+{
+    "DEBUG": true,
+
+    "SECRET_KEY": "sdkljfhsdklfg9082745r3lkn;ldkfrngl;sdjkfghl;knsdrg",
+
+    "HOSTNAME": "local.stoneinfocus.org"
+}

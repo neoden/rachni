@@ -1,14 +1,19 @@
 #!/usr/bin/env python
+import json
+import time
+import logging
 
 import asyncio
 import websockets
-import logging
 import asyncio_redis
-import json
-import time
+import aiopg
+from aiopg.sa import create_engine
+import sqlalchemy as sa
 
 from asyncio_redis.exceptions import NotConnectedError
 from websockets.exceptions import ConnectionClosed
+
+from config import App, Config
 
 log = logging.getLogger('websockets.server')
 log.setLevel(logging.DEBUG)
@@ -29,6 +34,16 @@ def key(prefix, name):
     return '{}:{}'.format(prefix, str(name))
 
 
+metadata = sa.MetaData()
+
+tbl_messages = sa.Table('messages', metadata,
+    sa.Column('ts', sa.DateTime, nullable=False, primary_key=True),
+    sa.Column('user_id', sa.Integer, sa.ForeignKey('users.id'), nullable=False, primary_key=True),
+    sa.Column('channel_id', sa.Integer, sa.ForeignKey('channels.id'), nullable=False, primary_key=True),
+    sa.Column('text', sa.Text)
+)
+
+
 class Session:
     def __init__(self):
         self.message_task = None
@@ -47,8 +62,8 @@ class Session:
         self.server = server
         self.websocket = websocket
         self.redis_sub = await asyncio_redis.Connection.create(
-                                    host=server.redis_host, 
-                                    port=server.redis_port)
+                                    host=server.config['REDIS_HOST'], 
+                                    port=server.config['REDIS_PORT'])
         self.subscriber = await self.redis_sub.start_subscribe()
         await self.subscriber.subscribe([key('channel', c['id']) for c in self.channels])
         await self.schedule()
@@ -81,25 +96,27 @@ class Session:
         return 'Session <User: {}, Channel: {}>'.format(self.user_id, self.channel_id)
 
 
-class MessageServer:
-    def __init__(self, host=None, port=None, redis_host=None, redis_port=None):
-        self.host = host or '0.0.0.0'
-        self.port = port or 5678
-        self.redis_host = redis_host or '127.0.0.1'
-        self.redis_port = redis_port or 6379
+class MessageServer(App):
+    def __init__(self, instance_path=None, configs=None):
+        App.__init__(self, instance_path, configs)
         self.redis_pub = None
     
     def run(self):
         self.loop = asyncio.get_event_loop()
         debug('starting server')
         self.loop.run_until_complete(asyncio.gather(
+            self.connect_db(),
             self.connect_redis(),
-            websockets.serve(self.listen, self.host, self.port)))
+            websockets.serve(self.listen, self.config['HOST'], self.config['PORT'])))
         debug('entering loop')
         self.loop.run_forever()
 
+    async def connect_db(self):
+        self.engine = await create_engine(self.config['DB_URI'])
+
     async def connect_redis(self):
-        self.redis_pub = await asyncio_redis.Connection.create(host=self.redis_host, port=self.redis_port)
+        self.redis_pub = await asyncio_redis.Connection.create(
+            host=self.config['REDIS_HOST'], port=self.config['REDIS_PORT'])
 
     async def authenticate(self, path):
         auth_key = key('auth', path[1:])
@@ -131,19 +148,23 @@ class MessageServer:
 
             info('received: {}'.format(message))
             envelope = {
+                'type': 'message',
                 'ts': time.time(),
                 'user_id': session.user_id,
                 'channel_id': session.channel_id,
                 'text': message
             }
             info('publishing: {}'.format(envelope))
+
+            # publish for channel subscribers
             await self.redis_pub.publish(key('channel', session.channel_id), json.dumps(envelope))
 
-
-def main():
-    server = MessageServer()
-    server.run()
-
-
-if __name__ == '__main__':
-    main()
+            # store in the db
+            query = tbl_messages.insert().values(
+                ts=sa.func.to_timestamp(envelope['ts']),
+                user_id=envelope['user_id'],
+                channel_id=envelope['channel_id'],
+                text=envelope['text']
+            )
+            conn = await self.engine.acquire()
+            await conn.execute(query)
